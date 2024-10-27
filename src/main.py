@@ -37,7 +37,7 @@ class Base_Blade:
             self.blade_lip_width,
             cal_blade_thick - offsetY,
             r,
-            align=(Align.CENTER, Align.MAX, Align.CENTER),  # type:ignore
+            align=(Align.CENTER, Align.MIN, Align.CENTER),  # type:ignore
         )
         res = Pos(X=-mv) * sk
         return Pos(Y=-offsetY) * res
@@ -48,7 +48,7 @@ class Base_Blade:
 
         cal_blade_thick = self.blade_thick * scalar
         res = RectangleRounded(self.width * w_scale, cal_blade_thick, r,
-            align=(Align.CENTER, Align.MAX, Align.CENTER))  # type:ignore
+            align=(Align.CENTER, Align.MIN, Align.CENTER))  # type:ignore
         return res
 
 
@@ -74,7 +74,7 @@ class Base_Blade:
         return base_no_fillet
 
     def tip(self)->Part:
-        tip_body = Cylinder(radius=0.15*self.blade_thick, height=0.69 * self.width, rotation=(90,0,0),align=(Align.MAX,Align.CENTER, Align.CENTER))
+        tip_body = Cylinder(radius=0.15*self.blade_thick, height=0.69 * self.width, rotation=(90,0,0),align=(Align.CENTER,Align.CENTER, Align.CENTER))
         tip_filleted = chamfer(tip_body.edges(), 0.5)
         return (self.wire ^ 1) *tip_filleted        #type:ignore
 
@@ -98,8 +98,8 @@ class Base_Blade:
         body = [
             (self.wire ^ 0)  *rrt * self.sk_init(),
             (self.wire ^ 0.25) * rrt * self.sk_v(),
-            (self.wire ^ 0.6) * rrt * self.sk_v(scalar=0.5, offsetY=-3, r=1),
-            (self.wire ^ 0.85) * rrt * self.sk_v(scalar=0.1, offsetY=1, r=0.2),
+            (self.wire ^ 0.6) * rrt * self.sk_v(scalar=0.5, offsetY=0, r=1),
+            (self.wire ^ 0.85) * rrt * self.sk_v(scalar=0.1, offsetY=0, r=0.2),
         ]
         res = loft(body)
         return res
@@ -118,11 +118,11 @@ class Base_Blade:
 
 
 
-        wha = self.wire ^ 0.64
+        wha = self.wire ^ 0.6
         print(f"_____\nPos \t{pos_v}\nRot{rot_v}______\n")
 
         x_offset = self.width / 2 - self.blade_lip_width / 2
-        sk= Pos(Y=-x_offset, Z=self.cam_l/2) * Circle(cam_r)
+        sk= Pos(Y=-x_offset, Z=self.cam_l* 0.69) * Circle(cam_r)
         cam_wire_body = wha * Pos(X=-offline) * sk
         cam_body = extrude(cam_wire_body, amount=-self.cam_l, taper=-1)
         cam_face = cam_body.faces()[-1]
@@ -131,25 +131,26 @@ class Base_Blade:
         incision  = Plane(cam_face) * extrude(Rectangle(10, cam_wire_r*2, align=(Align.MAX,Align.CENTER)), amount=-self.cam_l)
         cam_body += incision
         #show_object(cam_face, name='cam_face')
-        body = [
-            (self.wire ^ 0)  * Pos( X= -self.blade_thick*2 + cam_wire_inset) * Circle(cam_wire_r),
-            (self.wire ^ 0.25)  * Pos(Y=-x_offset, X = -self.blade_thick + cam_wire_inset) * Circle(cam_wire_r),
-            (self.wire ^ 0.5)  * Pos(Y=-x_offset , X = -self.blade_thick/2 + cam_wire_inset) * Circle(cam_wire_r),
-            wha * Pos( X =-5,  Y=-x_offset,Z = -self.cam_l/2) * Circle(4/2),
+        cam_wire_body = [
+            (self.wire ^ 0)  * Pos( X= cam_wire_inset) * Circle(cam_wire_r),
+            (self.wire ^ 0.25)  * Pos(Y=-x_offset, X =-4 +cam_wire_inset) * Circle(cam_wire_r),
+            (self.wire ^ 0.4)  * Pos(Y=-x_offset , X = 0  + cam_wire_inset) * Circle(cam_wire_r),
+            wha * Pos( X =cam_wire_inset,  Y=-x_offset,Z =0)  * Circle(4/2),  ## -self.cam_l/4)
         ]
-        cam_wire_body = loft(body)
-        addendum = extrude((self.wire ^ 0)  * Pos( X= -self.blade_thick*2 + cam_wire_inset) * Circle(cam_wire_r), amount=-30, taper=-0.5)
+        cam_wire_body = loft(cam_wire_body)
+
+        addendum = extrude((self.wire ^ 0)  * Pos( X= cam_wire_inset) * Circle(cam_wire_r), amount=-30, taper=-0.5)
         #show_object(addendum, name="addendum")
         return cam_body + cam_wire_body + addendum
 
     def sk_hand(self,finged:bool = False ) -> Sketch:
 
         res = RectangleRounded(self.hand_w, self.width, 4,
-            align=(Align.MAX, Align.CENTER, Align.CENTER))  # type:ignore
+            align=(Align.MIN, Align.CENTER, Align.CENTER))  # type:ignore
         if(finged):
             fing_incision = 5
             res = Pos(X=-fing_incision) * RectangleRounded(self.hand_w - fing_incision, self.width, 4,
-                align=(Align.MAX, Align.CENTER, Align.CENTER))  # type:ignore
+                align=(Align.MIN, Align.CENTER, Align.CENTER))  # type:ignore
         return res
 
 
@@ -161,7 +162,7 @@ class Base_Blade:
             (5,100),
         ]
         hand_wire = Spline(pnts)
-        show_object(hand_wire)
+        show_object(hand_wire, name="hand_wire")
         body = [
             (self.wire ^ 0)  *Rot(Z=-90) * self.sk_init(),
             (hand_wire ^ 0.2) *   self.sk_hand(finged = True),
@@ -179,7 +180,7 @@ class Base_Blade:
         """
         # dev zone
         blade = self.blade_h() + self.blade_v() + self.hand()
-        cam = self.cam()
+        cam = self.cam(offline=-2.3)
         blade -= cam
         show_object(cam, name="cam")
         return blade
@@ -187,6 +188,6 @@ class Base_Blade:
 
 blade_spline = Spline(BLADE_N4_PTS)
 test = Base_Blade(wire=blade_spline)
-show_object(test.hand(), name="build")
-show_object(test.build(), name="ld")
+show_object(test.hand(), name="hand")
+show_object(test.build(), name="build")
 
